@@ -47,3 +47,5 @@ coverage.html
 # Build artifacts
 dist/
 build/
+
+settings.local.json
