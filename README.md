@@ -49,7 +49,7 @@ package main
 import (
     "errors"
     "log/slog"
-    
+
     "github.com/pannpers/go-apperr/apperr"
     "github.com/pannpers/go-apperr/apperr/codes"
 )
@@ -57,12 +57,12 @@ import (
 func main() {
     // Create a new error with status code
     err := apperr.New(codes.InvalidArgument, "user ID cannot be empty")
-    
+
     // Wrap an existing error
     dbErr := errors.New("connection failed")
     err = apperr.Wrap(dbErr, codes.Internal, "failed to get user",
         slog.String("user_id", "123"))
-    
+
     // Check error type
     if errors.Is(err, apperr.ErrInvalidArgument) {
         // Handle invalid argument error
@@ -138,13 +138,28 @@ if apperr.IsStacktraceEnabled() {
 
 ```go
 import (
+    "context"
     "log/slog"
     "connectrpc.com/connect"
     "github.com/pannpers/go-apperr/apperr/connect"
 )
 
+// Create a logger that implements the connect.Logger interface
+type slogLogger struct {
+    *slog.Logger
+}
+
+func (l *slogLogger) Error(ctx context.Context, msg string, err error, attrs ...slog.Attr) {
+    attrs := make([]any, len(args))
+    for i, attr := range args {
+        attrs[i] = attr
+    }
+    l.Logger.ErrorContext(ctx, msg, append([]any{slog.Any("error", err)}, attrs...)...)
+}
+
 // Create logger
-logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+slogLogger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+logger := &slogLogger{Logger: slogLogger}
 
 // Create error handling interceptor
 interceptor := connect.NewErrorHandlingInterceptor(logger)
@@ -160,6 +175,7 @@ server := connect.NewServer(
 go-apperr provides comprehensive status code support compatible with gRPC and Connect-RPC:
 
 ### Server Errors (5xx)
+
 - `Internal` - Internal server error
 - `Unknown` - Unknown error
 - `DataLoss` - Unrecoverable data loss
@@ -168,6 +184,7 @@ go-apperr provides comprehensive status code support compatible with gRPC and Co
 - `DeadlineExceeded` - Operation timed out
 
 ### Client Errors (4xx)
+
 - `InvalidArgument` - Invalid request parameters
 - `NotFound` - Resource not found
 - `AlreadyExists` - Resource already exists
@@ -178,7 +195,6 @@ go-apperr provides comprehensive status code support compatible with gRPC and Co
 - `OutOfRange` - Operation out of valid range
 - `ResourceExhausted` - Resources exhausted
 - `Canceled` - Operation canceled
-
 
 ## API Reference
 
