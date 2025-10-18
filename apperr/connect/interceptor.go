@@ -13,7 +13,7 @@ import (
 // Logger defines the interface for logging operations.
 // This allows for flexible logging implementations beyond slog.Logger.
 type Logger interface {
-	Error(msg string, args ...any)
+	Error(ctx context.Context, msg string, err error, attrs ...slog.Attr)
 }
 
 // NewErrorHandlingInterceptor creates a Connect interceptor that handles AppErr conversion and logging.
@@ -27,7 +27,7 @@ type Logger interface {
 // Default Behavior:
 // The interceptor automatically adds the RPC method name as a structured log attribute:
 //
-//	logger.Error("server error occurred", slog.Any("error", err), slog.String("rpc_method", "/service.v1.UserService/GetUser"))
+//	logger.Error(ctx, "server error occurred", err, slog.String("rpc_method", "/service.v1.UserService/GetUser"))
 //
 // Error Classification:
 //   - Server errors (logged): Internal, Unknown, DataLoss, Unimplemented, Unavailable, DeadlineExceeded
@@ -73,7 +73,7 @@ type Logger interface {
 //	// Check if error represents a server issue
 //	if appErr.Code.IsServerError() {
 //	    // Log with full context for debugging
-//	    logger.Error("server error occurred", slog.Any("error", appErr))
+//	    logger.Error(ctx, "server error occurred", appErr)
 //	} else {
 //	    // Client error - safe to return to client
 //	    return connect.NewError(appErr.Code.ToConnect(), appErr)
@@ -148,25 +148,16 @@ func HandleError(ctx context.Context, err error, logger Logger, attrs ...slog.At
 	var appErr *apperr.AppErr
 	if !errors.As(err, &appErr) {
 		// For non-AppErr errors, treat as unknown error
-		logger.Error("unhandled error occurred", slog.Any("error", err), slog.Group("attrs", convertAttrs(attrs)...))
+		logger.Error(ctx, "unhandled error occurred", err, attrs...)
 		return connect.NewError(connect.CodeUnknown, errInternal)
 	}
 
 	if appErr.Code.IsServerError() {
-		logger.Error("server error occurred", slog.Any("error", appErr), slog.Group("attrs", convertAttrs(attrs)...))
+		logger.Error(ctx, "server error occurred", appErr, attrs...)
 		return connect.NewError(appErr.Code.ToConnect(), errInternal)
 	}
 
 	return connect.NewError(appErr.Code.ToConnect(), appErr)
-}
-
-// convertAttrs converts []slog.Attr to []any for use with slog.Group.
-func convertAttrs(attrs []slog.Attr) []any {
-	result := make([]any, len(attrs))
-	for i, attr := range attrs {
-		result[i] = attr
-	}
-	return result
 }
 
 // errInternal is a generic error message returned to clients for server errors.

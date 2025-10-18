@@ -14,6 +14,21 @@ import (
 	"github.com/pannpers/go-apperr/apperr/codes"
 )
 
+// testLogger implements the Logger interface for testing.
+type testLogger struct {
+	*slog.Logger
+}
+
+// Error implements the Logger interface with context parameter.
+func (l *testLogger) Error(ctx context.Context, msg string, err error, args ...slog.Attr) {
+	// Convert slog.Attr to slog.Attr for the underlying logger.
+	attrs := make([]any, len(args))
+	for i, attr := range args {
+		attrs[i] = attr
+	}
+	l.ErrorContext(ctx, msg, append([]any{slog.Any("error", err)}, attrs...)...)
+}
+
 func TestNewErrorHandlingInterceptor(t *testing.T) {
 	t.Parallel()
 
@@ -96,9 +111,10 @@ func TestNewErrorHandlingInterceptor(t *testing.T) {
 
 			// Create a buffer to capture log output
 			var buf bytes.Buffer
-			logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{
+			slogLogger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{
 				Level: slog.LevelDebug,
 			}))
+			logger := &testLogger{Logger: slogLogger}
 
 			// Create interceptor
 			interceptor := NewErrorHandlingInterceptor(logger)
