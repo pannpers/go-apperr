@@ -99,8 +99,9 @@ func NewErrorHandlingInterceptor(logger Logger) connect.UnaryInterceptorFunc {
 //
 // Error Handling:
 //   - If err is nil, returns nil
-//   - If err is not an AppErr, treats it as Unknown error and logs it
 //   - If err is an AppErr, converts it to the appropriate Connect error code
+//   - If err is a *connect.Error, preserves the original code and logs only server errors
+//   - Otherwise, treats it as Unknown error and logs it
 //
 // Security Behavior:
 //   - Server errors (5xx): Returns a generic "internal server error" message to prevent
@@ -146,18 +147,44 @@ func HandleError(ctx context.Context, err error, logger Logger, attrs ...slog.At
 	}
 
 	var appErr *apperr.AppErr
-	if !errors.As(err, &appErr) {
-		// For non-AppErr errors, treat as unknown error
-		logger.Error(ctx, "unhandled error occurred", err, attrs...)
-		return connect.NewError(connect.CodeUnknown, errInternal)
+	if errors.As(err, &appErr) {
+		if appErr.Code.IsServerError() {
+			logger.Error(ctx, "server error occurred", appErr, attrs...)
+			return connect.NewError(appErr.Code.ToConnect(), errInternal)
+		}
+
+		return connect.NewError(appErr.Code.ToConnect(), appErr)
 	}
 
-	if appErr.Code.IsServerError() {
-		logger.Error(ctx, "server error occurred", appErr, attrs...)
-		return connect.NewError(appErr.Code.ToConnect(), errInternal)
+	var connectErr *connect.Error
+	if errors.As(err, &connectErr) {
+		if isServerErrorCode(connectErr.Code()) {
+			logger.Error(ctx, "server error occurred", err, attrs...)
+		}
+
+		return connectErr
 	}
 
-	return connect.NewError(appErr.Code.ToConnect(), appErr)
+	// For non-AppErr, non-connect.Error errors, treat as unknown error
+	logger.Error(ctx, "unhandled error occurred", err, attrs...)
+	return connect.NewError(connect.CodeUnknown, errInternal)
+}
+
+// isServerErrorCode determines if a connect.Code represents a server error.
+// This mirrors codes.Code.IsServerError() but operates on connect.Code directly,
+// used when handling *connect.Error instances that bypass the AppErr layer.
+func isServerErrorCode(code connect.Code) bool {
+	switch code {
+	case connect.CodeInternal,
+		connect.CodeUnknown,
+		connect.CodeDataLoss,
+		connect.CodeUnimplemented,
+		connect.CodeUnavailable,
+		connect.CodeDeadlineExceeded:
+		return true
+	default:
+		return false
+	}
 }
 
 // errInternal is a generic error message returned to clients for server errors.

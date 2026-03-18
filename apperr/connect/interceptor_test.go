@@ -90,6 +90,34 @@ func TestNewErrorHandlingInterceptor(t *testing.T) {
 			wantErrMsg: "unauthorized (unauthenticated)", // Connect appends error code
 		},
 		{
+			name:       "not log client connect.Error when InvalidArgument",
+			err:        connect.NewError(connect.CodeInvalidArgument, errors.New("field validation failed")),
+			wantNoLog:  true,
+			wantCode:   connect.CodeInvalidArgument,
+			wantErrMsg: "field validation failed",
+		},
+		{
+			name:       "not log client connect.Error when Unauthenticated",
+			err:        connect.NewError(connect.CodeUnauthenticated, errors.New("missing token")),
+			wantNoLog:  true,
+			wantCode:   connect.CodeUnauthenticated,
+			wantErrMsg: "missing token",
+		},
+		{
+			name:            "log server connect.Error when Internal",
+			err:             connect.NewError(connect.CodeInternal, errors.New("unexpected failure")),
+			wantLogContains: []string{"server error occurred", "rpc_method", "/TestService/TestMethod"},
+			wantCode:        connect.CodeInternal,
+			wantErrMsg:      "unexpected failure",
+		},
+		{
+			name:            "log server connect.Error when Unknown",
+			err:             connect.NewError(connect.CodeUnknown, errors.New("unknown failure")),
+			wantLogContains: []string{"server error occurred", "rpc_method", "/TestService/TestMethod"},
+			wantCode:        connect.CodeUnknown,
+			wantErrMsg:      "unknown failure",
+		},
+		{
 			name:            "log unhandled error with RPC method when non-AppErr error occurs",
 			err:             errors.New("unexpected error"),
 			wantLogContains: []string{"unhandled error occurred", "rpc_method", "/TestService/TestMethod"},
