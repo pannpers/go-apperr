@@ -26,7 +26,7 @@ func (l *testLogger) Error(ctx context.Context, msg string, err error, args ...s
 	for i, attr := range args {
 		attrs[i] = attr
 	}
-	l.Logger.ErrorContext(ctx, msg, append([]any{slog.Any("error", err)}, attrs...)...)
+	l.ErrorContext(ctx, msg, append([]any{slog.Any("error", err)}, attrs...)...)
 }
 
 func TestNewErrorHandlingInterceptor(t *testing.T) {

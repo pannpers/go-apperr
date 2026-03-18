@@ -310,7 +310,7 @@ func withStack() slog.Attr {
 
 	for {
 		frame, more := frames.Next()
-		sb.WriteString(fmt.Sprintf("%s\n\t%s:%d\n", frame.Function, frame.File, frame.Line))
+		fmt.Fprintf(&sb, "%s\n\t%s:%d\n", frame.Function, frame.File, frame.Line)
 
 		if !more {
 			break
