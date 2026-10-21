@@ -20,7 +20,7 @@ A comprehensive Go error handling library with gRPC/Connect-RPC status codes, st
 
 ## Requirements
 
-- Go 1.26 or later (required by `connectrpc.com/connect/v2`)
+- Go 1.27 or later
 
 ## Installation
 

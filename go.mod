@@ -1,6 +1,8 @@
 module github.com/pannpers/go-apperr
 
-go 1.26.0
+go 1.27
+
+toolchain go1.27.3
 
 tool github.com/vektra/mockery/v3
 
