@@ -1,17 +1,22 @@
 module github.com/pannpers/go-apperr
 
-go 1.25
+go 1.27
+
+toolchain go1.27.3
 
 tool github.com/vektra/mockery/v3
 
-require connectrpc.com/connect v1.16.0
+require (
+	connectrpc.com/connect v1.16.0
+	connectrpc.com/connect/v2 v2.0.1
+	google.golang.org/protobuf v1.36.11
+)
 
 require (
 	github.com/brunoga/deep v1.2.4 // indirect
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
-	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jedib0t/go-pretty/v6 v6.6.7 // indirect
@@ -43,6 +48,5 @@ require (
 	golang.org/x/term v0.32.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
 	golang.org/x/tools v0.36.0 // indirect
-	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
