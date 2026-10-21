@@ -20,8 +20,7 @@ A comprehensive Go error handling library with gRPC/Connect-RPC status codes, st
 
 ## Requirements
 
-- Go 1.21 or later (required for `log/slog` features)
-- Target version: Go 1.24
+- Go 1.26 or later (required by `connectrpc.com/connect/v2`)
 
 ## Installation
 
@@ -36,7 +35,8 @@ This will make the following packages available:
 ```
 github.com/pannpers/go-apperr/apperr          # Core error handling
 github.com/pannpers/go-apperr/apperr/codes    # Status codes
-github.com/pannpers/go-apperr/apperr/connect  # Connect-RPC integration (optional)
+github.com/pannpers/go-apperr/apperr/connect    # Connect-RPC integration for connect-go v1 (optional)
+github.com/pannpers/go-apperr/apperr/connectv2  # Connect-RPC integration for connect-go v2 (optional)
 ```
 
 ## Quick Start
@@ -136,39 +136,70 @@ if apperr.IsStacktraceEnabled() {
 
 ### Connect-RPC Integration
 
-```go
-import (
-    "context"
-    "log/slog"
-    "connectrpc.com/connect"
-    "github.com/pannpers/go-apperr/apperr/connect"
-)
+Both packages take a logger with this method, so one implementation serves v1 and v2:
 
-// Create a logger that implements the connect.Logger interface
+```go
+// slogLogger adapts *slog.Logger to the Logger interface of apperr/connect and apperr/connectv2.
 type slogLogger struct {
     *slog.Logger
 }
 
 func (l *slogLogger) Error(ctx context.Context, msg string, err error, attrs ...slog.Attr) {
-    attrs := make([]any, len(args))
-    for i, attr := range args {
-        attrs[i] = attr
+    args := make([]any, 0, len(attrs)+1)
+    args = append(args, slog.Any("error", err))
+    for _, attr := range attrs {
+        args = append(args, attr)
     }
-    l.Logger.ErrorContext(ctx, msg, append([]any{slog.Any("error", err)}, attrs...)...)
+    l.ErrorContext(ctx, msg, args...)
 }
 
-// Create logger
-slogLogger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-logger := &slogLogger{Logger: slogLogger}
+logger := &slogLogger{Logger: slog.New(slog.NewJSONHandler(os.Stdout, nil))}
+```
 
-// Create error handling interceptor
-interceptor := connect.NewErrorHandlingInterceptor(logger)
+#### connect-go v1 (`connectrpc.com/connect`)
 
-// Use with Connect server
-server := connect.NewServer(
-    connect.WithInterceptors(interceptor),
+```go
+import (
+    "connectrpc.com/connect"
+
+    apperrconnect "github.com/pannpers/go-apperr/apperr/connect"
+)
+
+// The v1 interceptor covers unary RPCs.
+path, handler := userv1connect.NewUserServiceHandler(svc,
+    connect.WithInterceptors(apperrconnect.NewErrorHandlingInterceptor(logger)),
 )
 ```
+
+#### connect-go v2 (`connectrpc.com/connect/v2`)
+
+```go
+import (
+    "connectrpc.com/connect/v2"
+
+    "github.com/pannpers/go-apperr/apperr/connectv2"
+)
+
+// The v2 interceptor is a connect.ServerInterceptor, so it covers unary and streaming RPCs.
+server := connect.NewServer(
+    connectv2.NewErrorHandlingInterceptor(logger),
+)
+```
+
+Both packages send clients the same code and message for the same error:
+
+| Error returned by the handler | Code sent to the client | Message sent to the client | Logged |
+| --- | --- | --- | --- |
+| `AppErr` with a client code | the AppErr's code | `AppErr.Error()`, e.g. `invalid input (invalid_argument)` | No |
+| `AppErr` with a server code | the AppErr's code | `internal server error` | Yes |
+| `*connect.Error` | unchanged | unchanged | If its code is a server error |
+| any other error | `Unknown` | `internal server error` | Yes |
+
+In v2, the original error is attached with `(*connect.Error).WithCause`, so `errors.Is` and `errors.As`
+still find it in server-side code (for example, another interceptor). The cause is never sent to clients.
+
+You can migrate one service at a time: v1 handlers keep using `apperr/connect` while v2 handlers use
+`apperr/connectv2`.
 
 ## Error Codes
 
@@ -215,7 +246,8 @@ go-apperr provides comprehensive status code support compatible with gRPC and Co
 ### Code Methods
 
 - `Code.IsServerError()` - Check if code represents server error
-- `Code.ToConnect()` - Convert to Connect-RPC code
+- `Code.ToConnect()` - Convert to a connect-go v1 code
+- `connectv2.ToConnectCode(code)` - Convert to a connect-go v2 code
 - `Code.String()` - String representation
 
 ## Configuration
