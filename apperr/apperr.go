@@ -53,6 +53,22 @@
 //		// Handle invalid argument error
 //	}
 //
+// # Reasons
+//
+// When a code is not specific enough, give the error a machine-readable reason
+// with WithReason, and compare against an error that carries the same reason:
+//
+//	var ErrListingExpired = apperr.New(codes.FailedPrecondition, "listing has expired",
+//		apperr.WithReason("LISTING_EXPIRED"))
+//
+//	if errors.Is(err, ErrListingExpired) {
+//		// Only errors with the reason LISTING_EXPIRED match.
+//	}
+//
+//	if errors.Is(err, apperr.ErrFailedPrecondition) {
+//		// Targets without a reason still match by code alone.
+//	}
+//
 // # Structured Logging
 //
 // AppErr implements slog.LogValuer for structured logging:
@@ -161,8 +177,10 @@ func (e *AppErr) Unwrap() error {
 }
 
 // Is enables error checking with errors.Is.
-// Returns true if the target is an AppErr with the same Code, or if the Cause field matches the target.
-// This allows semantic error comparison based on error codes rather than exact instance matching.
+// If the target is an AppErr with a reason (see WithReason), it returns true when e or an
+// error it wraps has the same reason, whatever the codes. If the target is an AppErr without a reason, it returns
+// true when e has the same Code. Otherwise it returns true if the Cause field matches the target.
+// This allows semantic error comparison based on codes and reasons rather than exact instance matching.
 func (e *AppErr) Is(target error) bool {
 	if target == nil || e == nil {
 		return false
@@ -173,6 +191,12 @@ func (e *AppErr) Is(target error) bool {
 	}
 
 	if t, ok := target.(*AppErr); ok {
+		// A reason identifies the cause on its own, so it is compared without the code.
+		// The code may legitimately differ: Wrap can change it while keeping the reason.
+		if r := reasonOf(t.Attrs); r != "" {
+			return hasReason(e.Attrs, r)
+		}
+
 		// Compare by Code for semantic equivalence
 		return e.Code == t.Code
 	}

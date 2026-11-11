@@ -91,6 +91,27 @@ if errors.As(err, &appErr) {
 }
 ```
 
+### Reasons
+
+When a code is not specific enough, give the error a machine-readable reason with `apperr.WithReason`. A reason follows the `reason` of `google.rpc.ErrorInfo` ([AIP-193](https://google.aip.dev/193)): a constant in `UPPER_SNAKE_CASE` that identifies the cause, unique within the service.
+
+```go
+// Declare the comparison target once
+var ErrListingExpired = apperr.New(codes.FailedPrecondition, "listing has expired",
+    apperr.WithReason("LISTING_EXPIRED"))
+
+// Create or wrap an error with the reason
+err := apperr.Wrap(dbErr, codes.FailedPrecondition, "cannot issue",
+    apperr.WithReason("LISTING_EXPIRED"))
+
+errors.Is(err, ErrListingExpired)            // true: same reason
+errors.Is(err, apperr.ErrFailedPrecondition) // true: a target without a reason matches by code
+```
+
+- A target with a reason matches only errors with the same reason, whatever their codes.
+- `Wrap` keeps the wrapped error's reason. Like `errors.Is` itself, the match looks along the whole chain, so an error whose wrapper adds another reason matches both.
+- The reason is logged as `attrs.reason`. It is not part of the error message, and the Connect integration does not send it to clients.
+
 ### Structured Logging
 
 ```go
@@ -233,6 +254,7 @@ go-apperr provides comprehensive status code support compatible with gRPC and Co
 
 - `apperr.New(code, msg, attrs...)` - Create new error
 - `apperr.Wrap(err, code, msg, attrs...)` - Wrap existing error
+- `apperr.WithReason(reason)` - Attribute that gives an error a machine-readable reason
 - `apperr.Configure(opts...)` - Configure global settings
 - `apperr.IsStacktraceEnabled()` - Check stack trace setting
 
